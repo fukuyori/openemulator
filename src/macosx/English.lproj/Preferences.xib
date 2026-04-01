@@ -10,6 +10,8 @@
             <connections>
                 <outlet property="fAudioView" destination="1865" id="2100"/>
                 <outlet property="fChooseTemplateButton" destination="1771" id="1928"/>
+                <outlet property="fDefaultBleedLevelPopup" destination="3012" id="3017"/>
+                <outlet property="fDefaultDisplayModePopup" destination="3003" id="3008"/>
                 <outlet property="fGeneralView" destination="28" id="1760"/>
                 <outlet property="fShowTemplateChooserRadio" destination="1768" id="2080"/>
                 <outlet property="fTemplateChooserChooseButton" destination="2052" id="2089"/>
@@ -130,11 +132,11 @@
             </subviews>
         </customView>
         <customView id="2095" userLabel="Video">
-            <rect key="frame" x="0.0" y="0.0" width="512" height="91"/>
+            <rect key="frame" x="0.0" y="0.0" width="512" height="150"/>
             <autoresizingMask key="autoresizingMask"/>
             <subviews>
                 <button imageHugsTitle="YES" id="2096">
-                    <rect key="frame" x="173" y="35" width="321" height="18"/>
+                    <rect key="frame" x="173" y="92" width="321" height="18"/>
                     <autoresizingMask key="autoresizingMask"/>
                     <buttonCell key="cell" type="check" title="Enable shader rendering" bezelStyle="regularSquare" imagePosition="leading" alignment="left" state="on" inset="2" id="2097">
                         <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
@@ -148,6 +150,57 @@
                         </binding>
                     </connections>
                 </button>
+                <textField verticalHuggingPriority="750" id="3010">
+                    <rect key="frame" x="17" y="58" width="153" height="17"/>
+                    <autoresizingMask key="autoresizingMask"/>
+                    <textFieldCell key="cell" sendsActionOnEndEditing="YES" alignment="right" title="Color Bleed:" id="3011">
+                        <font key="font" metaFont="system"/>
+                        <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                </textField>
+                <popUpButton verticalHuggingPriority="750" id="3012">
+                    <rect key="frame" x="173" y="53" width="139" height="26"/>
+                    <autoresizingMask key="autoresizingMask"/>
+                    <popUpButtonCell key="cell" type="push" pullsDown="NO" bezelStyle="rounded" arrowPosition="arrowAtBottom" preferredEdge="maxY" selectedItem="3014" id="3013">
+                        <font key="font" metaFont="menu"/>
+                        <menu key="menu" title="Color Bleed" id="3016">
+                            <items>
+                                <menuItem title="Reduced" id="3014"/>
+                                <menuItem title="Standard" id="3015"/>
+                                <menuItem title="Strong" id="3018"/>
+                            </items>
+                        </menu>
+                    </popUpButtonCell>
+                    <connections>
+                        <action selector="defaultBleedLevelDidChange:" target="-2" id="3019"/>
+                    </connections>
+                </popUpButton>
+                <textField verticalHuggingPriority="750" id="3001">
+                    <rect key="frame" x="17" y="25" width="153" height="17"/>
+                    <autoresizingMask key="autoresizingMask"/>
+                    <textFieldCell key="cell" sendsActionOnEndEditing="YES" alignment="right" title="Default Display:" id="3002">
+                        <font key="font" metaFont="system"/>
+                        <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                </textField>
+                <popUpButton verticalHuggingPriority="750" id="3003">
+                    <rect key="frame" x="173" y="20" width="165" height="26"/>
+                    <autoresizingMask key="autoresizingMask"/>
+                    <popUpButtonCell key="cell" type="push" pullsDown="NO" bezelStyle="rounded" arrowPosition="arrowAtBottom" preferredEdge="maxY" selectedItem="3005" id="3004">
+                        <font key="font" metaFont="menu"/>
+                        <menu key="menu" title="Default Display" id="3006">
+                            <items>
+                                <menuItem title="Color Composite" id="3005"/>
+                                <menuItem title="Monochrome" id="3007"/>
+                            </items>
+                        </menu>
+                    </popUpButtonCell>
+                    <connections>
+                        <action selector="defaultDisplayModeDidChange:" target="-2" id="3009"/>
+                    </connections>
+                </popUpButton>
             </subviews>
         </customView>
         <window title="Template Chooser" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" visibleAtLaunch="NO" animationBehavior="default" id="2049" userLabel="Template Chooser">

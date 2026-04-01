@@ -47,6 +47,8 @@ OpenEmulator emulates the following systems:
   - Apple II+
   - Apple II Europlus
   - Apple II J-Plus
+  - Apple IIe
+  - Apple IIe Enhanced
 
 ## Feedback and contributing
 If you find a bug, or would like a specific feature, please report it at:

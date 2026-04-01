@@ -23,6 +23,7 @@
     
     BOOL newCanvasesCapture;
     NSMutableArray *newCanvases;
+    BOOL applyDefaultVideoSettingsForNewDocument;
 }
 
 - (id)initWithTemplateURL:(NSURL *)templateURL error:(NSError **)outError;
@@ -35,6 +36,8 @@
 - (void *)emulation;
 
 - (IBAction)showEmulation:(id)sender;
+- (IBAction)setDisplayMonochrome:(id)sender;
+- (IBAction)setDisplayColorComposite:(id)sender;
 - (void)constructCanvas:(NSDictionary *)dict;
 - (void)destroyCanvas:(NSValue *)canvasValue;
 - (void)showCanvas:(NSValue *)canvasValue;

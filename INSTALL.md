@@ -13,7 +13,16 @@ After cloning this repository, `cd` into it and retrieve the libemulation source
 	git submodule update --init --recursive
 
 ### Dependencies
-Install the dependencies for libemulation as described [here](https://github.com/openemulator/libemulation/blob/master/INSTALL.md). When the dependencies are installed, build libemulation:
+Install the required dependencies with Homebrew:
+
+	brew install cmake libxml2 libzip portaudio libsndfile libsamplerate
+
+Xcode command-line tools should also be available. If your local Xcode installation has not completed its first-run setup yet, run:
+
+	xcodebuild -runFirstLaunch
+
+### Build libemulation
+When the dependencies are installed, build libemulation:
 
 	cmake -Hmodules/libemulation -Bmodules/libemulation/build -DCMAKE_BUILD_TYPE=Release
 	cmake --build modules/libemulation/build --config Release
@@ -21,6 +30,18 @@ Install the dependencies for libemulation as described [here](https://github.com
 ### Build
 Open OpenEmulator in Xcode to build, or run this command:
 
-	xcodebuild
+	xcodebuild -project OpenEmulator.xcodeproj -scheme OpenEmulator -configuration Release -derivedDataPath "$(pwd)/.deriveddata" SYMROOT="$(pwd)/build" build
 
-This will create the application bundle `OpenEmulator.app` in the build/Release directory.
+This will create the application bundle `OpenEmulator.app` in the `build/Release` directory.
+
+### Output
+
+- Application bundle:
+
+	`build/Release/OpenEmulator.app`
+
+### Notes
+
+- This fork has been adjusted for Apple Silicon Homebrew installations under `/opt/homebrew`.
+- The Xcode project links against the Homebrew-installed libraries directly, so the dependencies above should be installed before building.
+- The `-derivedDataPath` option keeps build products and intermediates inside the repository, which is useful in restricted or sandboxed environments.

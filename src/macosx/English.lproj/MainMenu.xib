@@ -252,6 +252,19 @@
                                     <action selector="fitToScreen:" target="-1" id="778"/>
                                 </connections>
                             </menuItem>
+                            <menuItem isSeparatorItem="YES" id="1001"/>
+                            <menuItem title="Monochrome" id="1002">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <connections>
+                                    <action selector="setDisplayMonochrome:" target="-1" id="1004"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Color Composite" id="1003">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <connections>
+                                    <action selector="setDisplayColorComposite:" target="-1" id="1005"/>
+                                </connections>
+                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="579"/>
                             <menuItem title="Show Audio Controls" keyEquivalent="j" id="930">
                                 <connections>

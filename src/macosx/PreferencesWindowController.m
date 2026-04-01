@@ -45,6 +45,7 @@
     [toolbar release];
     
     [self updateGeneralView];
+    [self updateVideoView];
     
     [self setView:selectedItemIdentifier];
     
@@ -244,6 +245,52 @@
 - (IBAction)closeTemplateChooser:(id)sender
 {
     [NSApp endSheet:fTemplateChooserSheet];
+}
+
+- (void)updateVideoView
+{
+    NSString *mode = [[NSUserDefaults standardUserDefaults] stringForKey:@"OEVideoDefaultDisplayMode"];
+    if ([mode isEqualToString:@"Monochrome"])
+        [fDefaultDisplayModePopup selectItemAtIndex:1];
+    else
+        [fDefaultDisplayModePopup selectItemAtIndex:0];
+
+    NSString *bleedLevel = [[NSUserDefaults standardUserDefaults] stringForKey:@"OEVideoDefaultBleedLevel"];
+    if ([bleedLevel isEqualToString:@"Strong"])
+        [fDefaultBleedLevelPopup selectItemAtIndex:2];
+    else if ([bleedLevel isEqualToString:@"Reduced"])
+        [fDefaultBleedLevelPopup selectItemAtIndex:0];
+    else
+        [fDefaultBleedLevelPopup selectItemAtIndex:1];
+}
+
+- (IBAction)defaultDisplayModeDidChange:(id)sender
+{
+    NSString *mode = ([sender indexOfSelectedItem] == 1) ? @"Monochrome" : @"Color Composite";
+    [[NSUserDefaults standardUserDefaults] setObject:mode
+                                              forKey:@"OEVideoDefaultDisplayMode"];
+}
+
+- (IBAction)defaultBleedLevelDidChange:(id)sender
+{
+    NSString *bleedLevel;
+    switch ([sender indexOfSelectedItem])
+    {
+        case 0:
+            bleedLevel = @"Reduced";
+            break;
+            
+        case 2:
+            bleedLevel = @"Strong";
+            break;
+            
+        default:
+            bleedLevel = @"Standard";
+            break;
+    }
+    
+    [[NSUserDefaults standardUserDefaults] setObject:bleedLevel
+                                              forKey:@"OEVideoDefaultBleedLevel"];
 }
 
 - (void)didEndSheet:(NSWindow *)sheet

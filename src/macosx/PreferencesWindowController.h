@@ -17,6 +17,8 @@
     IBOutlet id fGeneralView;
     IBOutlet id fAudioView;
     IBOutlet id fVideoView;
+    IBOutlet id fDefaultDisplayModePopup;
+    IBOutlet id fDefaultBleedLevelPopup;
     
     IBOutlet id fShowTemplateChooserRadio;
     IBOutlet id fUseTemplateRadio;
@@ -38,5 +40,9 @@
 - (IBAction)openTemplateChooser:(id)sender;
 - (IBAction)chooseTemplate:(id)sender;
 - (IBAction)closeTemplateChooser:(id)sender;
+
+- (void)updateVideoView;
+- (IBAction)defaultDisplayModeDidChange:(id)sender;
+- (IBAction)defaultBleedLevelDidChange:(id)sender;
 
 @end

@@ -361,12 +361,11 @@
     NSWindow *window = [self window];
     NSSize frameSize = [window frame].size;
     NSSize viewSize = [[window contentView] frame].size;
-    CGFloat userScale = [window userSpaceScaleFactor];
-    NSSize titleSize = NSMakeSize(frameSize.width - viewSize.width * userScale,
-                                  frameSize.height - viewSize.height * userScale);
+    NSSize titleSize = NSMakeSize(frameSize.width - viewSize.width,
+                                  frameSize.height - viewSize.height);
     
-    NSSize proposedSize = NSMakeSize(scale * userScale * defaultViewSize.width,
-                                     scale * userScale * defaultViewSize.height);
+    NSSize proposedSize = NSMakeSize(scale * defaultViewSize.width,
+                                     scale * defaultViewSize.height);
     CGFloat proposedRatio = proposedSize.width / proposedSize.height;
     
     NSRect screenRect = [[window screen] visibleFrame];

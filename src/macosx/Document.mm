@@ -31,6 +31,101 @@
 
 @implementation Document
 
+static void applyAppleIIColorBleedLevel(OEComponent *monitor, NSString *bleedLevel)
+{
+    if ([bleedLevel isEqualToString:@"Reduced"])
+    {
+        monitor->setValue("videoWhiteOnly", "0");
+        monitor->setValue("videoSaturation", "1.10");
+        monitor->setValue("videoLumaBandwidth", "2000000");
+        monitor->setValue("videoChromaBandwidth", "450000");
+    }
+    else if ([bleedLevel isEqualToString:@"Strong"])
+    {
+        monitor->setValue("videoWhiteOnly", "0");
+        monitor->setValue("videoSaturation", "1.60");
+        monitor->setValue("videoLumaBandwidth", "2500000");
+        monitor->setValue("videoChromaBandwidth", "900000");
+    }
+}
+
+static void applyAppleIICompositePreset(OEComponent *monitor, NSString *bleedLevel)
+{
+    monitor->setValue("videoDecoder", "Composite Y'IQ");
+    monitor->setValue("videoWhiteOnly", "0");
+    monitor->setValue("videoSaturation", "1.450000048");
+    monitor->setValue("videoHue", "0.0");
+    monitor->setValue("videoBandwidth", "6000000");
+    
+    applyAppleIIColorBleedLevel(monitor, bleedLevel);
+}
+
+- (OEComponent *)appleIIMonitorComponent
+{
+    if (!emulation)
+        return NULL;
+
+    return ((OEEmulation *)emulation)->getComponent("appleMonitorII.monitor");
+}
+
+- (BOOL)setAppleIIMonitorDecoder:(string)decoder
+{
+    OEComponent *monitor = [self appleIIMonitorComponent];
+    if (!monitor)
+        return NO;
+
+    [self lockEmulation];
+
+    bool success = true;
+    if ((decoder == "Composite Y'UV") || (decoder == "Composite Y'IQ"))
+    {
+        NSString *bleedLevel = [[NSUserDefaults standardUserDefaults] stringForKey:@"OEVideoDefaultBleedLevel"];
+        applyAppleIICompositePreset(monitor, bleedLevel);
+    }
+    else
+        success = monitor->setValue("videoDecoder", decoder);
+    
+    if (success)
+    {
+        monitor->update();
+        [self updateChangeCount:NSChangeDone];
+    }
+
+    [self unlockEmulation];
+
+    return success;
+}
+
+- (void)applyDefaultVideoSettingsIfNeeded
+{
+    if (!applyDefaultVideoSettingsForNewDocument)
+        return;
+
+    applyDefaultVideoSettingsForNewDocument = NO;
+
+    OEComponent *monitor = [self appleIIMonitorComponent];
+    if (!monitor)
+        return;
+
+    NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
+    NSString *mode = [userDefaults stringForKey:@"OEVideoDefaultDisplayMode"];
+    NSString *bleedLevel = [userDefaults stringForKey:@"OEVideoDefaultBleedLevel"];
+    [self lockEmulation];
+
+    bool success = true;
+    if ([mode isEqualToString:@"Monochrome"])
+        success = monitor->setValue("videoDecoder", "Monochrome");
+    else
+        applyAppleIICompositePreset(monitor, bleedLevel);
+
+    if (success)
+    {
+        monitor->update();
+    }
+
+    [self unlockEmulation];
+}
+
 // Callbacks
 
 void didUpdate(void *userData)
@@ -97,6 +192,7 @@ void destroyCanvas(void *userData, OEComponent *canvas)
                     error:(NSError **)outError
 {
     self = [super init];
+    applyDefaultVideoSettingsForNewDocument = YES;
     
     if (self && [self readFromURL:absoluteURL
                            ofType:nil
@@ -156,6 +252,8 @@ void destroyCanvas(void *userData, OEComponent *canvas)
     {
         if (((OEEmulation *)emulation)->isOpen())
         {
+            [self applyDefaultVideoSettingsIfNeeded];
+
             if (((OEEmulation *)emulation)->isActive())
                 [self updateChangeCount:NSChangeDone];
             
@@ -368,6 +466,16 @@ void destroyCanvas(void *userData, OEComponent *canvas)
     [emulationWindowController showWindow:self];
 }
 
+- (IBAction)setDisplayMonochrome:(id)sender
+{
+    [self setAppleIIMonitorDecoder:"Monochrome"];
+}
+
+- (IBAction)setDisplayColorComposite:(id)sender
+{
+    [self setAppleIIMonitorDecoder:"Composite Y'IQ"];
+}
+
 - (void)constructCanvas:(NSDictionary *)dict
 {
     void *device = [[dict objectForKey:@"device"] pointerValue];
@@ -572,12 +680,35 @@ void destroyCanvas(void *userData, OEComponent *canvas)
 - (BOOL)validateUserInterfaceItem:(id)anItem
 {
     SEL action = [anItem action];
+    NSMenuItem *menuItem = [anItem isKindOfClass:[NSMenuItem class]] ? anItem : nil;
     
     if (action == @selector(printDocument:))
     {
         NSWindow *window = [NSApp mainWindow];
         
         return [window isMemberOfClass:[CanvasWindow class]];
+    }
+    else if ((action == @selector(setDisplayMonochrome:)) ||
+             (action == @selector(setDisplayColorComposite:)))
+    {
+        OEComponent *monitor = [self appleIIMonitorComponent];
+        if (!monitor)
+            return NO;
+
+        string decoder;
+        if (!monitor->getValue("videoDecoder", decoder))
+            return NO;
+
+        if (menuItem)
+        {
+            bool isSelected =
+            (action == @selector(setDisplayMonochrome:)) ?
+            (decoder == "Monochrome") :
+            ((decoder == "Composite Y'UV") || (decoder == "Composite Y'IQ"));
+            [menuItem setState:isSelected ? NSOnState : NSOffState];
+        }
+
+        return YES;
     }
     
     return YES;

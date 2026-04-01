@@ -9,6 +9,8 @@
  */
 
 #import <Carbon/Carbon.h>
+#import <GameController/GameController.h>
+#include <math.h>
 
 #import "DocumentController.h"
 
@@ -40,6 +42,40 @@ void hidDeviceWasRemoved(void *inContext, IOReturn inResult, void *inSender, IOH
 void hidDeviceEventOcurred(void *inContext, IOReturn inResult, void *inSender, IOHIDValueRef value)
 {
     [(DocumentController *)inContext hidDeviceEventOccured:value];
+}
+
+static NSDictionary *buildHIDCriterion(int usage)
+{
+    return [NSDictionary dictionaryWithObjectsAndKeys:
+            [NSNumber numberWithInt:kHIDPage_GenericDesktop],
+            (NSString *)CFSTR(kIOHIDDeviceUsagePageKey),
+            [NSNumber numberWithInt:usage],
+            (NSString *)CFSTR(kIOHIDDeviceUsageKey),
+            nil];
+}
+
+static float normalizeGameControllerAxis(float value)
+{
+    return (value + 1.0f) * 0.5f;
+}
+
+static float applyGamepadDeadzone(float value)
+{
+    const float deadzone = 0.15f;
+
+    if (fabsf(value) < deadzone)
+        return 0.0f;
+
+    float sign = (value < 0.0f) ? -1.0f : 1.0f;
+    return (value - sign * deadzone) / (1.0f - deadzone);
+}
+
+static float normalizeAppleIIGamepadAxis(float value, BOOL invert)
+{
+    float adjusted = applyGamepadDeadzone(value);
+    if (invert)
+        adjusted = -adjusted;
+    return normalizeGameControllerAxis(adjusted);
 }
 
 @implementation DocumentController
@@ -88,6 +124,11 @@ void hidDeviceEventOcurred(void *inContext, IOReturn inResult, void *inSender, I
 
 - (void)dealloc
 {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+
+    if (ioHIDManager)
+        CFRelease(ioHIDManager);
+
     [diskImagePathExtensions release];
     [audioPathExtensions release];
     [textPathExtensions release];
@@ -151,13 +192,11 @@ void hidDeviceEventOcurred(void *inContext, IOReturn inResult, void *inSender, I
     // Initialize game pad callbacks
     ioHIDManager = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
     
-    NSDictionary *criterion = [NSDictionary dictionaryWithObjectsAndKeys:
-                               [NSNumber numberWithInt:kHIDPage_GenericDesktop],
-                               (NSString *)CFSTR(kIOHIDDeviceUsagePageKey),
-                               [NSNumber numberWithInt:kHIDUsage_GD_Joystick],
-                               (NSString *)CFSTR(kIOHIDDeviceUsageKey),
-                               nil];
-    IOHIDManagerSetDeviceMatching(ioHIDManager, (CFDictionaryRef)criterion);
+    NSArray *criteria = [NSArray arrayWithObjects:
+                         buildHIDCriterion(kHIDUsage_GD_Joystick),
+                         buildHIDCriterion(kHIDUsage_GD_MultiAxisController),
+                         nil];
+    IOHIDManagerSetDeviceMatchingMultiple(ioHIDManager, (CFArrayRef)criteria);
     
     IOHIDManagerRegisterDeviceMatchingCallback(ioHIDManager, hidDeviceWasAdded, self);
     IOHIDManagerRegisterDeviceRemovalCallback(ioHIDManager, hidDeviceWasRemoved, self);
@@ -166,6 +205,19 @@ void hidDeviceEventOcurred(void *inContext, IOReturn inResult, void *inSender, I
     IOHIDManagerScheduleWithRunLoop(ioHIDManager, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
     
     IOHIDManagerOpen(ioHIDManager, kIOHIDOptionsTypeNone);
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(gcControllerDidConnect:)
+                                                 name:GCControllerDidConnectNotification
+                                               object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(gcControllerDidDisconnect:)
+                                                 name:GCControllerDidDisconnectNotification
+                                               object:nil];
+
+    for (GCController *controller in [GCController controllers])
+        [self gcControllerDidConnect:[NSNotification notificationWithName:GCControllerDidConnectNotification
+                                                                   object:controller]];
     
     // Initialize defaults
     NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
@@ -176,6 +228,8 @@ void hidDeviceEventOcurred(void *inContext, IOReturn inResult, void *inSender, I
                               [NSNumber numberWithFloat:1], @"OEAudioPlayVolume",
                               [NSNumber numberWithBool:YES], @"OEAudioPlayThrough",
                               [NSNumber numberWithBool:shaderDefault], @"OEVideoEnableShader",
+                              @"Color Composite", @"OEVideoDefaultDisplayMode",
+                              @"Standard", @"OEVideoDefaultBleedLevel",
                               nil
                               ];
     [userDefaults registerDefaults:defaults]; 
@@ -580,7 +634,11 @@ void hidDeviceEventOcurred(void *inContext, IOReturn inResult, void *inSender, I
 
 - (void)hidDeviceWasAdded:(IOHIDDeviceRef)device
 {
-    [hidDevices addObject:[NSValue valueWithPointer:device]];
+    NSValue *deviceValue = [NSValue valueWithPointer:device];
+    if ([hidDevices containsObject:deviceValue])
+        return;
+
+    [hidDevices addObject:deviceValue];
     
     ((HIDJoystick *)hidJoystick)->addDevice();
 }
@@ -590,6 +648,123 @@ void hidDeviceEventOcurred(void *inContext, IOReturn inResult, void *inSender, I
     ((HIDJoystick *)hidJoystick)->removeDevice();
     
     [hidDevices removeObject:[NSValue valueWithPointer:device]];
+}
+
+- (void)gcControllerDidConnect:(NSNotification *)notification
+{
+    GCController *controller = [notification object];
+    if (!controller || [hidDevices containsObject:controller])
+        return;
+
+    GCExtendedGamepad *extendedGamepad = [controller extendedGamepad];
+    if (extendedGamepad)
+    {
+        extendedGamepad.valueChangedHandler = ^(GCExtendedGamepad *gamepad, GCControllerElement *element) {
+            [(DocumentController *)[NSApp delegate] gcController:controller valueDidChange:element];
+        };
+    }
+
+    GCGamepad *gamepad = [controller gamepad];
+    if (gamepad)
+    {
+        gamepad.valueChangedHandler = ^(GCGamepad *standardGamepad, GCControllerElement *element) {
+            [(DocumentController *)[NSApp delegate] gcController:controller valueDidChange:element];
+        };
+    }
+
+    [hidDevices addObject:controller];
+    ((HIDJoystick *)hidJoystick)->addDevice();
+}
+
+- (void)gcControllerDidDisconnect:(NSNotification *)notification
+{
+    GCController *controller = [notification object];
+    if (!controller)
+        return;
+
+    if ([controller extendedGamepad])
+        [controller extendedGamepad].valueChangedHandler = nil;
+    if ([controller gamepad])
+        [controller gamepad].valueChangedHandler = nil;
+
+    if ([hidDevices containsObject:controller])
+    {
+        [hidDevices removeObject:controller];
+        ((HIDJoystick *)hidJoystick)->removeDevice();
+    }
+}
+
+- (void)gcController:(GCController *)controller valueDidChange:(GCControllerElement *)element
+{
+    NSInteger deviceIndex = [hidDevices indexOfObject:controller];
+    if (deviceIndex == NSNotFound)
+        return;
+
+    [self lockEmulation];
+
+    if ([controller extendedGamepad])
+    {
+        GCExtendedGamepad *gamepad = [controller extendedGamepad];
+        float leftX = gamepad.leftThumbstick.xAxis.value;
+        float leftY = gamepad.leftThumbstick.yAxis.value;
+        float rightX = gamepad.rightThumbstick.xAxis.value;
+        float rightY = gamepad.rightThumbstick.yAxis.value;
+
+        if (fabsf(leftX) < 0.15f)
+            leftX = gamepad.dpad.left.isPressed ? -1.0f : (gamepad.dpad.right.isPressed ? 1.0f : 0.0f);
+        if (fabsf(leftY) < 0.15f)
+            leftY = gamepad.dpad.up.isPressed ? 1.0f : (gamepad.dpad.down.isPressed ? -1.0f : 0.0f);
+        if (fabsf(rightX) < 0.15f)
+            rightX = leftX;
+        if (fabsf(rightY) < 0.15f)
+            rightY = leftY;
+
+        ((HIDJoystick *)hidJoystick)->setAxis((OEInt)deviceIndex, 0,
+                                              normalizeAppleIIGamepadAxis(leftX, NO));
+        ((HIDJoystick *)hidJoystick)->setAxis((OEInt)deviceIndex, 1,
+                                              normalizeAppleIIGamepadAxis(leftY, YES));
+        ((HIDJoystick *)hidJoystick)->setAxis((OEInt)deviceIndex, 2,
+                                              normalizeAppleIIGamepadAxis(rightX, NO));
+        ((HIDJoystick *)hidJoystick)->setAxis((OEInt)deviceIndex, 3,
+                                              normalizeAppleIIGamepadAxis(rightY, YES));
+
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 0, gamepad.buttonA.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 1, gamepad.buttonB.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 2, gamepad.buttonX.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 3, gamepad.buttonY.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 4, gamepad.leftShoulder.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 5, gamepad.rightShoulder.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 6, gamepad.leftTrigger.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 7, gamepad.rightTrigger.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 8, gamepad.dpad.up.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 9, gamepad.dpad.down.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 10, gamepad.dpad.left.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 11, gamepad.dpad.right.isPressed);
+    }
+    else if ([controller gamepad])
+    {
+        GCGamepad *gamepad = [controller gamepad];
+        float dpadX = gamepad.dpad.xAxis.value;
+        float dpadY = gamepad.dpad.yAxis.value;
+
+        ((HIDJoystick *)hidJoystick)->setAxis((OEInt)deviceIndex, 0,
+                                              normalizeAppleIIGamepadAxis(dpadX, NO));
+        ((HIDJoystick *)hidJoystick)->setAxis((OEInt)deviceIndex, 1,
+                                              normalizeAppleIIGamepadAxis(dpadY, YES));
+
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 0, gamepad.buttonA.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 1, gamepad.buttonB.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 2, gamepad.buttonX.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 3, gamepad.buttonY.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 4, gamepad.leftShoulder.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 5, gamepad.rightShoulder.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 8, gamepad.dpad.up.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 9, gamepad.dpad.down.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 10, gamepad.dpad.left.isPressed);
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, 11, gamepad.dpad.right.isPressed);
+    }
+
+    [self unlockEmulation];
 }
 
 - (void)hidDeviceEventOccured:(IOHIDValueRef)value
@@ -603,12 +778,14 @@ void hidDeviceEventOcurred(void *inContext, IOReturn inResult, void *inSender, I
     long int min = IOHIDElementGetLogicalMin(element);
     long int max = IOHIDElementGetLogicalMax(element);
     
-    int deviceIndex = (int) [hidDevices indexOfObject:[NSValue valueWithPointer:device]];
+    NSInteger deviceIndex = [hidDevices indexOfObject:[NSValue valueWithPointer:device]];
+    if (deviceIndex == NSNotFound)
+        return;
     
     [self lockEmulation];
     
     if (usagePage == 0x9)
-        ((HIDJoystick *)hidJoystick)->setButton(deviceIndex, usageId - 1,
+        ((HIDJoystick *)hidJoystick)->setButton((OEInt)deviceIndex, usageId - 1,
                                                 intValue);
     else if (usagePage == 0x1)
     {
@@ -616,10 +793,10 @@ void hidDeviceEventOcurred(void *inContext, IOReturn inResult, void *inSender, I
         {
             float normalizedValue = (float) (intValue - min) / (float) (max - min);
             
-            ((HIDJoystick *)hidJoystick)->setAxis(deviceIndex, usageId - 0x30, normalizedValue);
+            ((HIDJoystick *)hidJoystick)->setAxis((OEInt)deviceIndex, usageId - 0x30, normalizedValue);
         }
         else if (usageId == 0x39)
-            ((HIDJoystick *)hidJoystick)->setHat(deviceIndex, usageId - 0x39, (OEInt) intValue);
+            ((HIDJoystick *)hidJoystick)->setHat((OEInt)deviceIndex, usageId - 0x39, (OEInt) intValue);
     }
     
     [self unlockEmulation];

@@ -118,3 +118,5 @@ iOSInjectionProject/
 
 # Project-specific
 build/
+.deriveddata/
+*.dmg

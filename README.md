@@ -56,4 +56,5 @@ If you find a bug, or would like a specific feature, please report it at:
 If you would like to contribute to the project, fork the repository on GitHub and send us your pull requests!
 
 ## License
-OpenEmulator is released under the [GNU General Public License v3](COPYING).
+This fork of OpenEmulator is distributed under the [GNU General Public License v3](COPYING).
+See [COPYING](COPYING) for the full license text.
